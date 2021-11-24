@@ -62,4 +62,15 @@ public class OAuthController {
 		return (EvernoteOAuthToken) accessToken;
 	}
 
+	@RequestMapping("/callback")
+	public void callback(
+			@RequestParam String oauth_token, 
+			@RequestParam String oauth_verifier,
+			@RequestParam boolean sandbox_lnb
+			) {
+		System.out.println("Oauth token: " + oauth_token);
+		System.out.println("Oauth verifier: " + oauth_verifier);
+		System.out.println("sandbox_lnb: " + sandbox_lnb);
+	}
+
 }

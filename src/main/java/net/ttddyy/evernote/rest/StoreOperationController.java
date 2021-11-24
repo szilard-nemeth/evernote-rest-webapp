@@ -1,5 +1,14 @@
 package net.ttddyy.evernote.rest;
 
+import com.evernote.clients.NoteStoreClient;
+import com.evernote.edam.error.EDAMNotFoundException;
+import com.evernote.edam.error.EDAMSystemException;
+import com.evernote.edam.error.EDAMUserException;
+import com.evernote.edam.notestore.NoteFilter;
+import com.evernote.edam.notestore.NoteList;
+import com.evernote.edam.type.Note;
+import com.evernote.edam.type.NoteSortOrder;
+import com.evernote.thrift.TException;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +34,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.Iterator;
 
 /**
  * @author Tadaya Tsuyukubo
@@ -58,9 +68,11 @@ public class StoreOperationController {
 	@RequestMapping(value = "/{methodName}", method = RequestMethod.POST)
 	public Object invoke(@PathVariable String storeName, @PathVariable String methodName,
 						 @RequestBody(required = false) JsonNode jsonNode,
-						 HttpServletRequest request, HttpServletResponse response) {
+						 HttpServletRequest request, HttpServletResponse response) throws Exception {
 
 		final StoreOperations storeOperations = getStoreOperations(storeName);
+		searchNotes();
+		
 		final Class<?> storeOperationsClass = storeOperations.getClass();
 		final Class<?> actualStoreClientClass = resolveStoreClientClass(storeOperations);  // underlying ~StoreClient class.
 
@@ -125,6 +137,55 @@ public class StoreOperationController {
 			} else {
 				throw new EvernoteRestException(message, e);
 			}
+		}
+	}
+
+	private void searchNotes() throws Exception {
+		NoteStoreClient noteStoreClient = evernote.noteStoreClient();
+		// Searches are formatted according to the Evernote search grammar.
+		// Learn more at
+		// http://dev.evernote.com/documentation/cloud/chapters/Searching_notes.php
+
+		// In this example, we search for notes that have the term "EDAMDemo" in
+		// the title.
+		// This should return the sample note that we created in this demo app.
+		String query = "intitle:2020";
+//		String query = "";
+
+		// To search for notes with a specific tag, we could do something like
+		// this:
+		// String query = "tag:tagname";
+
+		// To search for all notes with the word "elephant" anywhere in them:
+		// String query = "elephant";
+
+		NoteFilter filter = new NoteFilter();
+		filter.setWords(query);
+		filter.setOrder(NoteSortOrder.UPDATED.getValue());
+		filter.setAscending(false);
+
+		// Find the first 50 notes matching the search
+		System.out.println("Searching for notes matching query: " + query);
+		NoteList notes = noteStoreClient.findNotes(filter, 0, 50);
+		System.out.println("Found " + notes.getTotalNotes() + " matching notes");
+
+		Iterator<Note> iter = notes.getNotesIterator();
+		while (iter.hasNext()) {
+			Note note = iter.next();
+			System.out.println("Note: " + note.getTitle());
+
+			// Note objects returned by findNotes() only contain note attributes
+			// such as title, GUID, creation date, update date, etc. The note
+			// content
+			// and binary resource data are omitted, although resource metadata
+			// is included.
+			// To get the note content and/or binary resources, call getNote()
+			// using the note's GUID.
+			Note fullNote = noteStoreClient.getNote(note.getGuid(), true, true, false,
+					false);
+			System.out.println("Note contains " + fullNote.getResourcesSize()
+					+ " resources");
+			System.out.println("Note contents: " + fullNote.getContent());
 		}
 	}
 
